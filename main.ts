@@ -6,7 +6,8 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const source = new URL('./entry.png', import.meta.url);
@@ -47,6 +48,25 @@ try {
 if (copiedSize !== sourceSize) {
   rmSync(destination, { force: true });
   console.error(`error: copied entry.png is ${copiedSize} bytes, expected ${sourceSize} bytes; removed the incomplete copy`);
+  process.exit(1);
+}
+
+// Verify the copy byte for byte: the size check alone cannot catch a copy
+// that is the right length but has different content. A hash mismatch is
+// reported as a plain error, and the bad copy is removed.
+let sourceHash: string;
+let copiedHash: string;
+try {
+  sourceHash = createHash('sha256').update(readFileSync(source)).digest('hex');
+  copiedHash = createHash('sha256').update(readFileSync(destination)).digest('hex');
+} catch (error) {
+  rmSync(destination, { force: true });
+  console.error(`error: could not verify the copied entry.png: ${error instanceof Error ? error.message : String(error)}; removed the copy`);
+  process.exit(1);
+}
+if (copiedHash !== sourceHash) {
+  rmSync(destination, { force: true });
+  console.error('error: copied entry.png does not match the source image; removed the incomplete copy');
   process.exit(1);
 }
 
