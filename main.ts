@@ -31,11 +31,23 @@ try {
 
 // Verify the copy is complete: the written file must be exactly as large
 // as the source image. If it is not, remove the partial copy and fail
-// loudly instead of handing the judge a truncated image.
-const sourceSize = statSync(source).size;
-const copiedSize = statSync(destination).size;
+// loudly instead of handing the judge a truncated image. Reading the sizes
+// can itself fail (for example if the destination vanished mid-copy), so
+// report that as a plain error instead of crashing with a stack trace.
+let sourceSize: number;
+let copiedSize: number;
+try {
+  sourceSize = statSync(source).size;
+  copiedSize = statSync(destination).size;
+} catch (error) {
+  rmSync(destination, { force: true });
+  console.error(`error: could not verify the copied entry.png: ${error instanceof Error ? error.message : String(error)}; removed the copy`);
+  process.exit(1);
+}
 if (copiedSize !== sourceSize) {
   rmSync(destination, { force: true });
   console.error(`error: copied entry.png is ${copiedSize} bytes, expected ${sourceSize} bytes; removed the incomplete copy`);
   process.exit(1);
 }
+
+console.log(`wrote ${destination} (${copiedSize} bytes)`);
